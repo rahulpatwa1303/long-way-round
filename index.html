@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Long Way Round</title>
+  <meta name="description" content="A cozy driving game in your browser. Four roads, a radio with DJs, weather and time of day. One road is real Manhattan, built from OpenStreetMap." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Long Way Round: a cozy drive through real Manhattan" />
+  <meta property="og:description" content="Free in your browser. Four roads, four radio stations, weather, and Central Park built from real map data." />
+  <meta property="og:url" content="https://rahulpatwa1303.github.io/long-way-round/" />
+  <meta property="og:image" content="https://rahulpatwa1303.github.io/long-way-round/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Long Way Round: a cozy drive through real Manhattan" />
+  <meta name="twitter:description" content="Free in your browser. Four roads, four radio stations, weather, and Central Park built from real map data." />
+  <meta name="twitter:image" content="https://rahulpatwa1303.github.io/long-way-round/og.png" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    :root { --ink: #fff8ee; --dim: rgba(255, 248, 238, 0.7); --glass: rgba(14, 18, 26, 0.55); --accent: #ff9a5a; }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; overflow: hidden; background: #0b0f17; color: var(--ink); font: 15px/1.4 Inter, system-ui, sans-serif; }
+    #app canvas { display: block; }
+    .panel { position: fixed; background: var(--glass); backdrop-filter: blur(8px); border-radius: 12px; padding: 8px 14px; pointer-events: none; }
+    #hud-tl { top: 16px; left: 16px; }
+    #clock { font: 600 20px Fraunces, serif; }
+    #weather { color: var(--dim); font-size: 13px; }
+    #speed { position: fixed; right: 22px; bottom: 18px; font: 700 54px Fraunces, serif; text-shadow: 0 2px 12px rgba(0,0,0,.5); pointer-events: none; }
+    #speed small { font: 600 14px Inter; margin-left: 6px; color: var(--dim); }
+    #fuel { right: 22px; bottom: 86px; display: flex; align-items: center; gap: 6px; padding: 6px 10px; }
+    .f-track { width: 110px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; }
+    #fuel-bar { height: 100%; width: 70%; background: #e9d27a; border-radius: 4px; transition: width .3s; }
+    .f-label { font: 600 11px Inter; color: var(--dim); }
+    .f-icon { font-size: 13px; }
+    #fuel.low #fuel-bar { background: #ff6a5a; }
+    #fuel.low { animation: fuelblink 1s steps(2) infinite; }
+    @keyframes fuelblink { 50% { opacity: .45; } }
+    @media (prefers-reduced-motion: reduce) { #fuel.low { animation: none; } }
+    #minimap { position: fixed; top: 16px; right: 16px; width: 170px; height: 170px; background: var(--glass); border-radius: 50%; }
+    #toast { position: fixed; top: 22%; left: 50%; transform: translate(-50%, -10px); text-align: center; opacity: 0; transition: .8s; pointer-events: none; text-shadow: 0 2px 16px rgba(0,0,0,.6); }
+    #toast.show { opacity: 1; transform: translate(-50%, 0); }
+    #toast b { display: block; font: 700 40px Fraunces, serif; letter-spacing: .02em; }
+    #toast span { color: var(--dim); }
+    #objective { top: 82px; left: 16px; max-width: 320px; font-size: 13px; color: var(--dim); opacity: 0; transition: .5s; }
+    #objective.show { opacity: 1; }
+    #objective::before { content: '◆ '; color: var(--accent); }
+    #prompt { bottom: 140px; left: 50%; transform: translateX(-50%); opacity: 0; transition: .3s; font-weight: 600; }
+    #prompt.show { opacity: 1; }
+    #dialogue { bottom: 28px; left: 50%; transform: translateX(-50%); width: min(620px, calc(100% - 32px)); opacity: 0; transition: .35s; padding: 12px 18px; }
+    #dialogue.show { opacity: 1; }
+    #dlg-who { font: 700 13px Inter; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+    #dialogue.radio #dlg-who { color: #7fd6ff; }
+    #dialogue.radio #dlg-who::before { content: '📻 '; }
+    #dialogue.cb { background: rgba(20, 30, 16, 0.7); border: 1px solid rgba(155, 227, 122, 0.35); }
+    #dialogue.cb #dlg-who { color: #9be37a; }
+    #dialogue.cb #dlg-who::before { content: 'CH 19 · '; color: rgba(155, 227, 122, 0.7); }
+    #dialogue.cb #dlg-text { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 15px; }
+    #dlg-text { font-size: 17px; margin-top: 2px; }
+    #dlg-choices div { margin-top: 6px; color: var(--ink); }
+    kbd { display: inline-block; min-width: 22px; text-align: center; background: rgba(255,255,255,.15); border-radius: 5px; padding: 0 5px; font: 600 12px Inter; }
+    #radio { left: 16px; bottom: 18px; display: grid; gap: 1px; min-width: 210px; max-width: 300px; }
+    #radio .freq { font: 600 15px Inter; font-variant-numeric: tabular-nums; }
+    #radio .freq b { font-family: Fraunces, serif; margin-left: 4px; }
+    #radio .genre, #radio .hint { font-size: 12px; color: var(--dim); }
+    #radio .song, #radio .dj { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #radio .dj { color: #ffc690; }
+    #race { top: 16px; left: 50%; transform: translateX(-50%); text-align: center; display: none; }
+    #race.show { display: block; }
+    #race-time { font: 700 34px Fraunces, serif; }
+    #race-time.urgent { color: #ff6a5a; }
+    #race-info { font-size: 13px; color: var(--dim); }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: center; background: linear-gradient(180deg, rgba(10,14,24,.35), rgba(10,14,24,.85)); transition: opacity 1s; }
+    .overlay.hide { opacity: 0; pointer-events: none; }
+    .card { text-align: center; max-width: 700px; padding: 16px; }
+    .card h1 { font: 700 clamp(40px, 9vw, 76px) Fraunces, serif; letter-spacing: .01em; }
+    .card p { color: var(--dim); margin-top: 6px; }
+    .keys { display: grid; grid-template-columns: auto auto; gap: 6px 18px; margin: 22px auto; width: max-content; text-align: left; font-size: 14px; color: var(--dim); }
+    button { font: 600 16px Inter; padding: 12px 30px; border-radius: 999px; border: 0; background: var(--accent); color: #241208; cursor: pointer; }
+    button:hover { filter: brightness(1.08); }
+    /* title screen */
+    #title { position: fixed; inset: 0; overflow: hidden auto; transition: opacity 1s; background: #0b0f17; }
+    #title.hide { opacity: 0; pointer-events: none; }
+    .t-bg { position: fixed; inset: 0; background: center / cover no-repeat var(--img, none); transition: opacity .6s; }
+    .t-bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,11,18,.88) 0, rgba(8,11,18,.55) 46%, rgba(8,11,18,.1) 75%), linear-gradient(0deg, rgba(8,11,18,.92) 0, rgba(8,11,18,0) 42%); }
+    .t-bg.fade { opacity: .35; }
+    .t-main { position: relative; min-height: 100%; display: grid; grid-template-rows: auto 1fr auto auto; gap: 20px; padding: clamp(24px, 5vh, 56px) clamp(16px, 5vw, 72px) 18px; max-width: 1400px; }
+    #title h1 { font: 700 clamp(40px, 6.5vw, 84px)/.95 Fraunces, serif; letter-spacing: -.01em; text-shadow: 0 2px 24px rgba(0,0,0,.4); }
+    .t-sub { color: var(--dim); font-size: 17px; margin-top: 10px; }
+    .t-pick { align-self: end; max-width: 520px; }
+    .t-tag { color: var(--accent); font: 600 12px Inter; letter-spacing: .1em; text-transform: uppercase; }
+    #title h2 { font: 700 clamp(28px, 3.4vw, 40px) Fraunces, serif; margin-top: 4px; }
+    .t-blurb { color: var(--dim); margin-top: 8px; font-size: 15px; max-width: 46ch; }
+    .t-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    #start { font-size: 17px; padding: 14px 34px; }
+    button.ghost { background: rgba(255,255,255,.1); color: var(--ink); border: 1px solid rgba(255,255,255,.2); }
+    .t-quick { margin-top: 14px; font-size: 13px; color: var(--dim); }
+    .t-quick kbd { margin-right: 2px; }
+    #maps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 1100px; }
+    .map-card { display: grid; align-content: start; text-align: left; padding: 0; border-radius: 12px; overflow: hidden; background: rgba(14,18,26,.72); backdrop-filter: blur(6px); color: var(--ink); border: 2px solid rgba(255,255,255,.08); font: 400 12px/1.35 Inter; cursor: pointer; transition: transform .15s, border-color .15s; }
+    .map-card img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+    .map-card b { font: 700 16px Fraunces, serif; padding: 9px 12px 0; }
+    .map-card small { color: var(--dim); font-size: 12px; padding: 2px 12px 11px; }
+    .map-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.25); }
+    .map-card.on { border-color: var(--accent); }
+    .map-card:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    #title .credits { font-size: 11px; color: rgba(255,248,238,.45); max-width: 760px; }
+    #keys-dlg { margin: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: #121722; color: var(--ink); padding: 24px 28px; max-width: min(720px, calc(100% - 32px)); }
+    #keys-dlg::backdrop { background: rgba(4,6,10,.6); }
+    #keys-dlg h2 { font-size: 26px; margin: 0; }
+    #keys-dlg .keys { margin: 16px 0 20px; width: auto; }
+    #keys-dlg form { text-align: right; }
+    @media (max-width: 900px) { #maps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .map-card small { display: none; } #keys-dlg .keys { grid-template-columns: 1fr; } body:not(.touch) .t-quick { display: none; } }
+    @media (prefers-reduced-motion: reduce) { .t-bg, .map-card, #title { transition: none; } }
+    button:disabled { opacity: .7; cursor: progress; }
+    #wheel { position: fixed; inset: 0; display: none; place-items: center; background: radial-gradient(circle, rgba(8,10,16,.55) 0, rgba(8,10,16,.25) 60%, transparent 80%); pointer-events: none; }
+    #wheel.show { display: grid; }
+    .wheel-ring { position: relative; width: 420px; height: 420px; }
+    .slot { position: absolute; left: 50%; top: 50%; display: grid; justify-items: center; gap: 4px; transform: translate(calc(-50% + var(--x) * 160px), calc(-50% + var(--y) * 160px)); transition: transform .15s; }
+    .disc { width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center; font: 700 26px Fraunces, serif; color: #fff; background: var(--c); box-shadow: 0 4px 18px rgba(0,0,0,.45); border: 3px solid rgba(255,255,255,.15); transition: .15s; }
+    .cap { font-size: 12px; color: var(--dim); white-space: nowrap; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+    .slot.active { transform: translate(calc(-50% + var(--x) * 172px), calc(-50% + var(--y) * 172px)) scale(1.2); }
+    .slot.active .disc { border-color: #fff; box-shadow: 0 0 0 4px rgba(255,255,255,.25), 0 6px 26px rgba(0,0,0,.5); }
+    .slot.active .cap { color: var(--ink); }
+    .hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 190px; height: 190px; border-radius: 50%; background: var(--glass); backdrop-filter: blur(8px); display: grid; align-content: center; justify-items: center; text-align: center; padding: 18px; gap: 4px; }
+    .hub-name { font: 700 18px Fraunces, serif; }
+    .hub-genre { font-size: 12px; color: var(--dim); }
+    .hub-now { font-size: 12px; color: #ffc690; }
+    body:not(.playing) .panel, body:not(.playing) #minimap, body:not(.playing) #speed { visibility: hidden; }
+    /* touch controls (phones, tablets) */
+    #touch { position: fixed; inset: 0; display: none; pointer-events: none; user-select: none; -webkit-user-select: none; }
+    body.playing.touch:not(.photo) #touch { display: block; }
+    #touch button { position: relative; pointer-events: auto; touch-action: none; border-radius: 14px; background: rgba(14,18,26,.5); color: var(--ink); border: 1px solid rgba(255,255,255,.18); font: 600 13px Inter; padding: 0; -webkit-tap-highlight-color: transparent; }
+    #touch button.on { background: rgba(255,154,90,.55); }
+    .t-stick { position: absolute; left: 0; bottom: 0; width: 42%; height: 72%; pointer-events: auto; touch-action: none; }
+    .t-base { position: absolute; left: calc(34px + 64px + env(safe-area-inset-left, 0px)); top: calc(100% - 26px - 64px - env(safe-area-inset-bottom, 0px)); width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%; background: rgba(14,18,26,.35); border: 2px solid rgba(255,255,255,.22); display: grid; place-items: center; transition: opacity .2s; opacity: .7; }
+    .t-stick.on .t-base { opacity: 1; transition: none; }
+    .t-knob { width: 58px; height: 58px; border-radius: 50%; background: rgba(255,248,238,.75); box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+    .t-stick:not(.on) .t-knob { transition: transform .12s; }
+    .t-right { position: absolute; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-end; gap: 12px; }
+    #touch .t-gas { width: 96px; height: 150px; background: rgba(60,140,80,.55); font-size: 15px; }
+    #touch .t-brake { width: 88px; height: 100px; background: rgba(160,55,45,.55); font-size: 15px; }
+    #touch .t-gas.on { background: rgba(90,200,110,.75); }
+    #touch .t-brake.on { background: rgba(230,80,60,.75); }
+    .t-mid { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 6px; }
+    .t-mid button { width: 64px; height: 38px; font-size: 12px !important; }
+    body.touch #radio { bottom: 186px; min-width: 0; max-width: 240px; }
+    body.touch #radio .genre, body.touch #radio .hint { display: none; }
+    body.touch #speed { bottom: 178px; font-size: 40px; }
+    body.touch #fuel { bottom: 232px; }
+    body.touch #dialogue { bottom: 64px; width: min(560px, calc(100% - 440px)); min-width: 280px; padding: 8px 14px; }
+    body.touch #dlg-text { font-size: 15px; }
+    body.touch #prompt { bottom: 178px; }
+    body.touch #minimap { width: 120px; height: 120px; }
+    /* short landscape screens (phones held sideways): a smaller HUD and a title that fits */
+    @media (max-height: 500px) {
+      .panel { padding: 5px 10px; border-radius: 10px; }
+      #hud-tl { top: 10px; left: 10px; }
+      #clock { font-size: 15px; }
+      #weather { font-size: 11px; }
+      #objective { top: 58px; left: 10px; max-width: 260px; font-size: 11px; }
+      body.touch #radio { top: 104px; bottom: auto; left: 10px; max-width: 200px; }
+      #radio .freq { font-size: 13px; }
+      #radio .song, #radio .dj { font-size: 11px; }
+      body.touch #minimap { top: 10px; right: 10px; width: 96px; height: 96px; }
+      body.touch #fuel { top: 112px; bottom: auto; right: 10px; }
+      body.touch #speed { bottom: 172px; right: 18px; font-size: 32px; }
+      #race { top: 8px; } #race-time { font-size: 24px; }
+      #toast b { font-size: 28px; }
+      .t-main { gap: 12px; padding: 18px 24px 12px; grid-template-rows: auto auto auto auto; }
+      #title h1 { font-size: 34px; }
+      .t-sub { font-size: 13px; margin-top: 4px; }
+      #title h2 { font-size: 22px; }
+      .t-tag { font-size: 10px; }
+      .t-blurb { font-size: 12px; margin-top: 4px; }
+      .t-actions { margin-top: 10px; }
+      #start, button.ghost { padding: 9px 22px; font-size: 14px; }
+      #maps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+      .map-card b { font-size: 12px; padding: 5px 8px 6px; }
+      .map-card small { display: none; }
+      #title .credits { display: none; }
+    }
+    body.touch .t-quick .kb, body:not(.touch) .t-quick .tc { display: none; }
+    #rotate { position: fixed; inset: 0; display: none; place-items: center; text-align: center; background: #0b0f17; z-index: 20; }
+    #rotate b { display: block; font-size: 56px; color: var(--accent); }
+    #rotate p { font: 600 18px Inter; margin-top: 8px; }
+    @media (orientation: portrait) { body.playing.touch #rotate { display: grid; } }
+    /* photo mode hides everything but the picture */
+    body.photo .panel, body.photo #minimap, body.photo #speed, body.photo #toast { visibility: hidden; }
+    #photohint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); font-size: 12px; color: var(--dim); background: rgba(14,18,26,.45); padding: 6px 12px; border-radius: 999px; display: none; pointer-events: none; }
+    body.photo #photohint { display: block; }
+    body.nofuel #fuel { display: none; }
+    #pause { display: none; }
+    #pause.show { display: grid; }
+  </style>
+  <script type="module" crossorigin src="./assets/index-1Sw5Zntb.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <div class="panel" id="hud-tl"><div id="clock"></div><div id="weather"></div></div>
+  <div class="panel" id="objective"></div>
+  <canvas id="minimap" width="170" height="170"></canvas>
+  <div id="speed"></div>
+  <div class="panel" id="fuel"><span class="f-label">E</span><div class="f-track"><div id="fuel-bar"></div></div><span class="f-label">F</span><span class="f-icon">⛽</span></div>
+  <div id="toast"></div>
+  <div class="panel" id="prompt"></div>
+  <div class="panel" id="radio"></div>
+  <div id="wheel"></div>
+  <div id="photohint">Photo mode · drag or arrows to orbit · scroll to zoom · [ ] time of day · O to exit</div>
+  <div class="panel" id="race"><div id="race-time"></div><div id="race-info"></div></div>
+  <div class="panel" id="dialogue"><div id="dlg-who"></div><div id="dlg-text"></div><div id="dlg-choices"></div></div>
+
+  <div id="title">
+    <div class="t-bg" id="t-bg"></div>
+    <div class="t-main">
+      <header>
+        <h1>Long Way Round</h1>
+        <p class="t-sub">A drive, not a race. Mostly.</p>
+      </header>
+      <section class="t-pick" aria-live="polite">
+        <p class="t-tag" id="t-tag"></p>
+        <h2 id="t-name"></h2>
+        <p class="t-blurb" id="t-blurb"></p>
+        <div class="t-actions">
+          <button id="start">Start driving</button>
+          <button class="ghost" id="show-keys" aria-haspopup="dialog">Controls</button>
+        </div>
+        <p class="t-quick"><span class="kb"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive · hold <kbd>Q</kbd> radio · <kbd>H</kbd> horn · <kbd>O</kbd> photo · <kbd>P</kbd> pause</span><span class="tc">Left thumb steers · gas and brake on the right · best held sideways</span></p>
+      </section>
+      <nav id="maps" aria-label="Choose a road"></nav>
+      <p class="credits">Music: CC0 from OpenGameArt.org by Komiku, Zane Little Music, Pro Sensory, memoraphile, omfgdude, Joth, congusbongus and Of Far Different Nature. Voices: Kokoro TTS. Central Park Loop map data © OpenStreetMap contributors (ODbL).</p>
+    </div>
+    <dialog id="keys-dlg" aria-label="Controls">
+      <h2>Controls</h2>
+      <div class="keys" id="keys">
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows</span><span>drive</span>
+        <span><kbd>Space</kbd></span><span>handbrake</span>
+        <span><kbd>E</kbd></span><span>talk · interact · skip line</span>
+        <span><kbd>1</kbd> <kbd>2</kbd></span><span>choose a reply</span>
+        <span><kbd>H</kbd> horn</span><span><kbd>T</kbd> (hold) speed up time</span>
+        <span><kbd>C</kbd> driver's seat</span><span>switch between the chase view and the driver's seat</span>
+        <span>Drag the mouse</span><span>look around the car (stays put while stopped) · right stick on a gamepad</span>
+        <span><kbd>[</kbd> <kbd>]</kbd> shift hour · <kbd>F1–F5</kbd></span><span>weather (F6 back to auto)</span>
+        <span><kbd>Q</kbd> (hold) radio wheel</span><span>point with the mouse or press 1–5, release to tune</span>
+        <span><kbd>R</kbd> / scroll</span><span>next / previous station</span>
+        <span>CB radio</span><span>with the station off, you'll hear truckers on channel 19</span>
+        <span><kbd>F</kbd> patch up the car</span><span>when stopped at the roadside diner</span>
+        <span><kbd>E</kbd> at a pump · <kbd>G</kbd> tow</span><span>refuel at the diner or gas station · call a tow when empty</span>
+        <span><kbd>O</kbd> photo mode</span><span>freeze, orbit the car, change the light</span>
+        <span>Gamepad</span><span>stick steers · RT/LT gas and brake · A handbrake · X talk · Y radio · hold LB radio wheel</span>
+        <span><kbd>M</kbd> mute</span><span><kbd>P</kbd> pause</span>
+      </div>
+      <form method="dialog"><button>Got it</button></form>
+    </dialog>
+  </div>
+  <div class="overlay" id="pause"><div class="card"><h1>Paused</h1><p>Press P to keep driving.</p></div></div>
+</body>
+</html>
